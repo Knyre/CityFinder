@@ -14,7 +14,9 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const city = input.value.trim();
   if (city.length < 2) return;
+
   markerLayer.clearLayers();
+
   const url =
     "https://geocoding-api.open-meteo.com/v1/search?" +
     new URLSearchParams({
@@ -24,18 +26,35 @@ form.addEventListener("submit", async (event) => {
       format: "json",
     });
 
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("Request failed");
-  const data = await response.json();
-  const locations = data.results ?? [];
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Request failed");
+    const data = await response.json();
+    const locations = data.results ?? [];
 
-  const bounds = [];
-  locations.forEach((place) => {
-    const coords = [place.latitude, place.longitude];
-    bounds.push(coords);
-    L.marker(coords).addTo(markerLayer).bindPopup(place.name);
-  });
+    if (locations.length === 0) {
+      alert("City not found.");
+      return;
+    }
 
-  if (bounds.length === 1) map.setView(bounds[0], 11);
-  else if (bounds.length > 1) map.fitBounds(bounds, { padding: [35, 35] });
+    // Add a marker for every result
+    locations.forEach((place) => {
+      const label = [place.name, place.admin1, place.country]
+        .filter(Boolean)
+        .join(", ");
+      L.marker([place.latitude, place.longitude])
+        .addTo(markerLayer)
+        .bindPopup(label);
+    });
+
+    // Zoom in on the best match (first result) every time
+    const best = locations[0];
+    map.flyTo([best.latitude, best.longitude], 12, { duration: 1.5 });
+
+    // Open the popup of the best match after the animation
+    markerLayer.getLayers()[0].openPopup();
+  } catch (err) {
+    console.error(err);
+    alert("Something went wrong. Please try again.");
+  }
 });
